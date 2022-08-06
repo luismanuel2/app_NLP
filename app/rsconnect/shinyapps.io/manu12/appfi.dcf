@@ -1,0 +1,13 @@
+name: appfi
+title: appfi
+username:
+account: manu12
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6746237
+bundleId: 6173775
+url: https://manu12.shinyapps.io/appfi/
+when: 1659761345.82036
+lastSyncTime: 1659761345.82041
+asMultiple: FALSE
+asStatic: FALSE

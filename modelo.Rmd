@@ -1,0 +1,105 @@
+---
+title: "modelo"
+author: "Luis Manuel Ambrocio Loreto"
+date: '2022-08-06'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(tidytext)
+
+
+
+
+veint<-unnest_tokens(data.frame(texto=dat),input = "texto", output = "veint", token = "ngrams", n = 16)
+fr<-veint$veint
+tokenizer = text_tokenizer(num_words = length(unique(un)))
+fit_text_tokenizer(tokenizer,fr)
+sequences <- texts_to_sequences(tokenizer, fr)
+sentences<-sentences[1:50000]
+Yp<-sapply(sequences, function(x) tail(x,1))
+X<-sapply(sequences, function(x) x[1:15])
+X<-t(X)
+length(unique(un))
+ce<-rep(0,length(unique(un)))
+Y<-sapply(Yp, function(x){sal<-ce 
+sal[x]<-1
+sal})
+Y<-t(Y)
+dim(X)
+dim(Y)
+```
+
+```{r}
+sequences<-sequences[1:50000]
+Yp<-sapply(sequences, function(x) tail(x,1))
+X<-sapply(sequences, function(x) x[1:15])
+X<-t(X)
+
+ce<-rep(0,n)
+Y<-sapply(Yp, function(x){sal<-ce 
+sal[x]<-1
+sal})
+Y<-t(Y)
+dim(X)
+dim(Y)
+```
+
+
+
+```{r}
+load("datos.RData")
+```
+
+```{r}
+library(keras)
+library(tensorflow)
+model <- keras_model_sequential()
+model %>%  
+  layer_embedding(input_dim = n,output_dim = 100,input_length = 20) %>% 
+  layer_lstm(units = 256 ) %>%
+  layer_dropout(rate = 0.20) %>%
+  layer_dense(units = n, activation = 'softmax')
+```
+
+```{r}
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('accuracy')
+)
+```
+
+```{r}
+history <- model %>% fit(
+  X2, Y2, 
+  epochs = 400, batch_size = 32, 
+  validation_split = 0.2
+)
+model %>% save_model_tf("model")
+model %>% save_model_hdf5("model.h5")
+``` 
+
+
+
+```{r}
+library(ramify)
+pred<-function(seed){
+  xh<-unlist(texts_to_sequences(tokenizer, seed))
+  n<-20 - length(xh)
+  if(n>0){
+      xh<-c( as.integer(runif(n,1,8515)),xh)
+  }else if (n<0){
+      xh<-tail(xh,20)
+  }
+  xh<-matrix(xh,1,length(xh))
+  yclass<-model %>% predict(xh) %>% argmax()
+  outpud<-tokenizer$index_word[yclass]
+  outpud
+}
+```

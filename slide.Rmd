@@ -1,0 +1,54 @@
+---
+title: "Final project"
+autor: "Luis Manuel Ambrocio Loreto"
+output: ioslides_presentation
+date: '2022-08-05'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Model description
+
+The model used is a LSTM (Long short-term memory), is an artificial neural network used in the fields of artificial intelligence and deep learning.
+
+The main operation of this model is that from previous values it will estimate a future value. In our case, from a text sequence, it will give an estimate of the next word
+
+## Performance
+
+The loss function used was the categorical crossentropy, in the training set the value of loss function was 1.0456, while, in the validation set the value of loss function was 1.2345.
+
+In the training set the accuracy was 0.7656, while in the validation set the accuaracy was 0.7234.
+
+The average response time of the model is 0.8 seconds.
+
+## Design description
+
+There are 3 components in the application:
+
+-   Text area input (where you can type the words)
+
+-   Text Output (where the recommended word appears)
+
+-   Action Button (where the recommended word is accepted)
+
+<center>
+
+![](images/pantalla_principal.png){width="600"} 
+
+</center>
+
+## Functioning 
+
+* You type the words over text input, when you type " " the model will estimate the next word 
+
+* If you agree with the proposed word you press the button "Apply", you can also press the key tab 
+
+<center>
+
+![](images/pantalla_principal.png){width="700"} 
+
+</center>
+
+

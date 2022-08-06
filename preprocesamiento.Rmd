@@ -1,0 +1,509 @@
+---
+title: "Procesamiento"
+author: "Luis Manuel Ambrocio Loreto"
+date: '2022-08-06'
+output: html_document
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = F,
+	warning = F,comment = '',fig.align = "center"
+)
+```
+
+
+# sampling 
+
+To build models, you do not need to upload and use all the data. Often, relatively few randomly selected rows or pieces should be included to obtain an accurate approach to the results that would be obtained using all the data, in this case we do it with the purpose of having a lower computational cost.
+
+```{r}
+library(purrr)
+
+if(!file.exists("D:/luism/Documents/courses/proyecto_final/final/en_US/muestra.txt")){
+set.seed(129)
+
+con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.blogs.txt","r")
+dat<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con)
+
+con2<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.news.txt","r")
+dat2<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con2)
+
+con3<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.twitter.txt","r")
+dat3<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con3)
+
+sam<-NULL
+se<-rbernoulli(length(dat),0.065)
+dat<-dat[se]
+
+se<-rbernoulli(length(dat2),0.065)
+dat2<-dat2[se]
+
+se<-rbernoulli(length(dat3),0.065)
+dat3<-dat3[se]
+
+dat<-dat[nchar(dat)>500]
+dat2<-dat2[nchar(dat2)>500]
+dat3<-dat3[nchar(dat3)>500]
+
+dats<-c(dat,dat2,dat3)
+
+con4<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/muestra.txt","w")
+writeLines(text = dats,con4)
+close(con4)
+}else{
+  con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/muestra.txt","r")
+dat<-readLines(con)
+close(con)
+}
+```
+
+
+
+
+# Data cleaning
+
+The text must be cleaned in order to have good results when training the model
+
+Removing URLs
+
+```{r}
+dat<-gsub("http[[:alnum:]]*", "", dat)
+```
+
+Removing special chars, punctuation and numbers
+
+```{r}
+library(tm)
+dat<-gsub("(f|ht)tp(s?)://(.*)[.][a-z]+","",dat)
+dat<-gsub("@[^\\s]+","",dat)
+dat<-removePunctuation(dat)
+dat<-removeNumbers(dat)
+dat<-stripWhitespace(dat)
+dat<-tolower(dat)
+```
+
+
+
+
+#  Exploratory Data Analysis
+
+```{r}
+library(tokenizers)
+
+token<-tokenize_words(dat)
+```
+ 
+We need to format this data to a format that is more useful for the NLP. The format is n-grams stored in terms of documents or matrix matrix of documents. We use a matrix representation of documents (DTM): documents such as rows, terms / words such as columns, the frequency of the term in the document as the entries. Because the number of words unique in the corpus, the dimension can be great. The nrampers are created to explore the frequencies of the words.
+
+Let's see the distribution of the 15 most frequent words 
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales)
+un<-unlist(token)
+tabla<-table(un)/length(un)
+tabla <- data.frame(word = names(tabla), count = as.numeric(tabla))
+tabla <- arrange(tabla, desc(count))
+head(tabla)
+
+ggplot(tabla[1:20,],aes(x=reorder(word,-count),y=count))+
+  geom_bar(stat = "identity",fill="blue")+theme_light()+
+  labs(x="word",y="prop")
+
+```
+
+The most used words are "the","and","to","a" and "of"
+
+
+Now let's see the distribution for 2-grams
+
+```{r}
+library(tidytext)
+
+bi<-unnest_tokens(data.frame(texto=dat),input = "texto", output = "bigrama", token = "ngrams", n = 2)
+tabla2<-table(bi$bigrama)/length(bi$bigrama)
+tabla2 <- data.frame(word = names(tabla2), count = as.numeric(tabla2))
+tabla2 <- arrange(tabla2, desc(count))
+head(tabla2)
+
+ggplot(tabla2[1:13,],aes(x=reorder(word,-count),y=count))+
+  geom_bar(stat = "identity",fill="blue")+theme_light()+
+  labs(x="word",y="prop")
+```
+
+the most used 2-grams are "of the","in the", "to the", "on the" and "to be", in the 5 cases there is the word "The"
+
+Now let's see the distribution for 3-grams
+
+```{r}
+library(tidytext)
+
+tri<-unnest_tokens(data.frame(texto=dat),input = "texto", output = "bigrama", token = "ngrams", n = 3)
+tabla3<-table(tri$bigrama)/length(tri$bigrama)
+tabla3 <- data.frame(word = names(tabla3), count = as.numeric(tabla3))
+tabla3 <- arrange(tabla3, desc(count))
+head(tabla3)
+ggplot(tabla3[1:8,],aes(x=reorder(word,-count),y=count))+
+  geom_bar(stat = "identity",fill="blue")+theme_light()+
+  labs(x="word",y="prop")
+```
+
+
+the most used 3-grams are "one of the","a lot of", "as well as", "some of the"
+
+Now let's see the impact of the most common words
+
+```{r}
+dataf<-tabla %>% mutate(sum=cumsum(count))
+n<-sum(dataf$sum<0.5)
+n
+length(dataf$sum)-n
+```
+112 words (the most used, which are approximately 1% of the total words) cover 50% of the text, while 73210 (the least used, which are approximately 99% of the total words) cover the other 50%
+
+
+```{r}
+n<-sum(dataf$sum<0.9)
+n
+length(dataf$sum)-n
+```
+6846 words (the most used, which are approximately 9% of the total words) cover 90% of the text, while 66476 (the least used, which are approximately 91% of the total words) cover the other 10%
+
+Let's see a graph of corpus coverage by using n words
+
+```{r}
+library(plotly)
+dataf2<-dataf %>% mutate(`Number of Words` = 1:nrow(dataf))
+
+g<-ggplot(dataf2,aes(x=`Number of Words`,y=sum))+geom_line()+
+  theme_light()+labs(y="covarage")
+
+ggplotly(g)
+```
+
+We can see that with less than half of words we can cover most corpus
+
+
+
+To predict the next word, as a model I plan to use a neuronal network LSTM or, a hidden Markov Model, to evaluate the models I will use the preplexity and/or the precision
+
+
+```{r}
+dataf<-subset(dataf,sum<=0.95)
+si<-dataf$word
+un<-un[un%in%si]
+dat<-paste(un,collapse = " ")
+```
+
+```{r}
+tabla<-table(un)
+no<-names(tabla[tabla<=30])
+un<-un[!(un%in%no)]
+dat<-paste(un,collapse = " ")
+```
+
+```{r}
+n<-4740
+save(sequences,file = "datos_modelo.RData")
+```
+
+```{r}
+load("datos_modelo.RData")
+```
+
+# convertir a el mismo formato (a latin small)
+
+```{r}
+library(stringr)
+library(qdapDictionaries)
+library(parallel)
+library(tm)
+data(contractions)
+library(purrr)
+library(tokenizers)
+library(tidyverse)
+```
+
+```{r}
+con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.blogs.txt","r")
+dat<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con)
+
+con2<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.news.txt","r")
+dat2<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con2)
+
+con3<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.twitter.txt","r")
+dat3<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con3)
+
+dat<-  stri_trans_general(dat,"latin")
+dat<-gsub('’','\'',dat)
+dat<-gsub('”','\'',dat)
+dat<-gsub('“','\'',dat)
+contractions$contraction<-tolower(contractions$contraction)
+contractions$expanded<-tolower(contractions$expanded)
+for ( i in 1:dim(contractions)[1]){
+  
+  dat<-gsub(contractions[i,]$contraction,
+           contractions[i,]$expanded,dat)
+
+}
+dat<-gsub("http[[:alnum:]]*", "", dat)
+dat<-gsub("(f|ht)tp(s?)://(.*)[.][a-z]+","",dat)
+dat<-gsub("@[^\\s]+","",dat)
+dat<-gsub("(?!\\.|,|')[[:punct:]]", " ", dat, perl=TRUE)
+dat<-removeNumbers(dat)
+dat<-stripWhitespace(dat)
+dat<-tolower(dat)
+
+
+dat2<- stri_trans_general(dat2,"latin")
+dat2<-  stri_trans_general(dat2,"latin")
+dat2<-gsub('’','\'',dat2)
+dat2<-gsub('”','\'',dat2)
+dat2<-gsub('“','\'',dat2)
+contractions$contraction<-tolower(contractions$contraction)
+contractions$expanded<-tolower(contractions$expanded)
+for ( i in 1:dim(contractions)[1]){
+  
+  dat2<-gsub(contractions[i,]$contraction,
+           contractions[i,]$expanded,dat2)
+
+}
+dat2<-gsub("http[[:alnum:]]*", "", dat2)
+dat2<-gsub("(f|ht)tp(s?)://(.*)[.][a-z]+","",dat2)
+dat2<-gsub("@[^\\s]+","",dat2)
+dat2<-gsub("(?!\\.|'|,)[[:punct:]]", "", dat2, perl=TRUE)
+dat2<-removeNumbers(dat2)
+dat2<-stripWhitespace(dat2)
+dat2<-tolower(dat2)
+
+dat3<- stri_trans_general(dat3,"latin")
+dat3<-  stri_trans_general(dat3,"latin")
+dat3<-gsub('’','\'',dat3)
+dat3<-gsub('”','\'',dat3)
+dat3<-gsub('“','\'',dat3)
+contractions$contraction<-tolower(contractions$contraction)
+contractions$expanded<-tolower(contractions$expanded)
+for ( i in 1:dim(contractions)[1]){
+  
+  dat3<-gsub(contractions[i,]$contraction,
+           contractions[i,]$expanded,dat3)
+
+}
+dat3<-gsub("http[[:alnum:]]*", "", dat3)
+dat3<-gsub("(f|ht)tp(s?)://(.*)[.][a-z]+","",dat3)
+dat3<-gsub("@[^\\s]+","",dat3)
+dat3<-gsub("(?!\\.|'|,)[[:punct:]]", "", dat3, perl=TRUE)
+dat3<-removeNumbers(dat3)
+dat3<-stripWhitespace(dat3)
+dat3<-tolower(dat3)
+
+con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.blogs2.txt","w")
+writeLines(text = dat,con)
+close(con)
+
+con2<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.news2.txt","w")
+writeLines(text = dat2,con2)
+close(con2)
+
+con3<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.twitter2.txt","w")
+writeLines(text = dat3,con3)
+close(con3)
+
+
+
+```
+
+
+
+
+```{r}
+con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.blogs2.txt","r")
+dat1<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con)
+
+con2<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.news2.txt","r")
+dat2<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con2)
+
+con3<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/en_US.twitter2.txt","r")
+dat3<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con3)
+#namconv<- stri_trans_general(nam,"latin")
+dat<-c(dat1,dat2)
+dat<-dat[nchar(str_conv(dat, encoding = "UTF-8"))>500]
+dat3<-dat3[nchar(str_conv(dat3, encoding = "UTF-8"))>100]
+dat<-c(dat,dat3)
+#se<-rbernoulli(length(dat),0.3)
+#dat<-dat[se]
+dat<-gsub('–',' ',dat)
+dat<-gsub(","," ", dat)
+text<-dat
+dat[str_detect(prueba," ([a-z])*\\.([a-z])* ")]<-gsub("\\."," ",dat[str_detect(prueba," ([a-z])*\\.([a-z])* ")])
+
+token<-tokenize_words(dat)
+
+un<-unlist(token)
+
+tabla<-table(un)
+head(tabla)
+no<-names(tabla[tabla<=30])
+no<-gsub('\\[','\\\\[',no)
+no<-gsub('\\[','\\\\[',no)
+no<-gsub('\\]','\\\\]',no)
+no<-gsub('\\(','\\\\(',no)
+no<-gsub('\\)','\\\\)',no)
+no<-gsub('\\*','\\\\*',no)
+no<-gsub('\\+','\\\\+',no)
+no<-gsub('\\.','\\\\.',no)
+no<-gsub('\\?','\\\\?',no)
+no<-gsub('\\^','\\\\^',no)
+no<-gsub('\\{','\\\\{',no)
+no<-gsub('\\}','\\\\}',no)
+no<-gsub('\\$','\\\\$',no)
+no<-gsub('\\|','\\\\|',no)
+noant<-sapply(no,function(x) paste0(" ",x," "))
+print(length(no))
+no<-paste0(" ",paste(no,collapse = " | ")," ")
+
+
+n<-length(text)
+fac<-as.integer(n/4)
+fac<-rep(1:4,each = fac)
+spldat<-split(text,fac)
+
+
+cl <- makeCluster(4) # Hacemos el cluster
+func<-function(limp){
+  limp<-limp[!str_detect(limp,no)]
+  return(limp)
+}
+
+clusterExport(cl, "no")
+clusterCall(cl, function() library(stringr))
+system.time(
+  text <- parLapply(cl, spldat, func)
+)
+text<-unlist(text)
+
+print(length(text))
+
+
+
+con2<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/text.txt","w")
+writeLines(text = text,con2)
+close(con2)
+
+```
+
+
+```{r}
+errores<-read.csv("errores.csv")
+el<-errores[errores$ot=="",]
+sus<-errores[errores$ot!="",] 
+
+con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/text2.txt","r")
+text<-readLines(con, warn = FALSE, encoding = "UTF-8")
+close(con)
+
+
+print(length(  text))
+no<-paste0(" ",paste(el$or,collapse = " | ")," ")
+
+
+n<-length(text)
+fac<-as.integer(n/4)
+fac<-rep(1:4,each = fac)
+spldat<-split(text,fac)
+
+cl <- makeCluster(4) # Hacemos el cluster
+func<-function(limp){
+ limp<-limp[!str_detect(limp,no)]
+ return(limp)
+}
+
+clusterExport(cl, "no")
+clusterCall(cl, function() library(stringr))
+system.time(
+ text2 <- parLapply(cl, spldat, func)
+)
+text2<-unlist(text2)
+
+text<-stripWhitespace(text2)
+print(length(text2))
+
+
+
+for (i in 1:length(sus$or)) {
+ text2<-gsub(paste0(" ",sus$or[i]," "),paste0(" ",sus$ot[i]," "),text2)
+}
+
+con2<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/text3.txt","w")
+writeLines(text = text2,con2)
+close(con2)
+ 
+```
+
+
+
+
+
+# datframes
+
+
+```{r}
+library(purrr)
+library(tensorflow)
+library(keras)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(tokenizers)
+library(tm)
+library(tidytext)
+con<-file("D:/luism/Documents/courses/proyecto_final/final/en_US/text.txt","r")
+dat<-readLines(con)
+close(con)
+set.seed(1000)
+dat<-dat[rbernoulli(length(dat),0.1)]
+token<-tokenize_words(dat)
+
+un<-unlist(token)
+
+
+veint<-unnest_tokens(data.frame(texto=dat),input = "texto", output = "veint", token = "ngrams", n = 21) # la ultima es la de prediccion
+
+fr<-veint$veint
+tokenizer = text_tokenizer(num_words = length(unique(un)))
+fit_text_tokenizer(tokenizer,fr)
+sequences <- texts_to_sequences(tokenizer, fr)
+sequences<-sequences[1:50000]
+n<-length(unique(un))
+save(n,tokenizer,fr,dat,file = "tokenizer.RData")
+rm(veint,token,tokenizer,dat,fr,tabla,un)
+Yp<-sapply(sequences, function(x) tail(x,1))
+X<-sapply(sequences, function(x) x[1:20])
+X<-t(X)
+ce<-rep(0,n)
+Y<-sapply(Yp, function(x){sal<-ce 
+sal[x]<-1
+sal})
+Y<-t(Y)
+dim(X)
+dim(Y)
+write.csv(X,"datX.csv",row.names = F, col.names = F)
+write.csv(Y,"datY.csv",row.names = F, col.names = F)
+```
+
+
